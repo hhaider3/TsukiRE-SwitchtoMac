@@ -18,6 +18,8 @@ target_compile_definitions(${NX_GAME} PRIVATE NX_DATA_ROOT_EXE)
 target_compile_definitions(${NX_GAME} PRIVATE NX_VK_REQUIRE_13)
 
 # Titulo e icono de la ventana (apply_game_window.py): kWindowTitle en game.cpp, icono 1 en tsukihime.rc
-enable_language(RC)
+if(WIN32)
+  enable_language(RC)
 target_compile_definitions(${NX_GAME} PRIVATE NX_CUSTOM_WINDOW_TITLE NX_WINDOW_ICON)
-target_sources(${NX_GAME} PRIVATE "${NX_TSUKI_COMMON}/tsukihime.rc")
+  target_sources(${NX_GAME} PRIVATE "${NX_TSUKI_COMMON}/tsukihime.rc")
+endif()

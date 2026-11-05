@@ -113,12 +113,18 @@ uint32_t ipc_request(CPU& c, uint32_t handle, uint64_t buf, uint64_t) {
     for (uint32_t i = 0; i < nx_; i++, p += 2) {
         uint32_t d0 = w[p], d1 = w[p + 1];
         uint64_t addr = d1 | (uint64_t((d0 >> 12) & 0xF) << 32) | (uint64_t((d0 >> 6) & 0x7) << 36);
+#if defined(__APPLE__)  // HIPC holds 39 bits; on macOS every guest address has bit 39 set (NX_BASE)
+        if (addr) addr |= 0x8000000000ull;
+#endif
         ctx.x.push_back({addr, d0 >> 16});
     }
     auto abw = [&](std::vector<Buffer>& v, uint32_t n) {
         for (uint32_t i = 0; i < n; i++, p += 3) {
             uint32_t size_lo = w[p], addr_lo = w[p + 1], d2 = w[p + 2];
             uint64_t addr = addr_lo | (uint64_t((d2 >> 28) & 0xF) << 32) | (uint64_t((d2 >> 2) & 0x7) << 36);
+#if defined(__APPLE__)  // HIPC holds 39 bits; on macOS every guest address has bit 39 set (NX_BASE)
+            if (addr) addr |= 0x8000000000ull;
+#endif
             uint64_t size = size_lo | (uint64_t((d2 >> 24) & 0xF) << 32);
             v.push_back({addr, size});
         }

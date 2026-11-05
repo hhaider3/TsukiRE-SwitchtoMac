@@ -553,6 +553,56 @@ const bool g_pad_source_set = [] {
 }();
 
 }  // namespace
+#elif defined(__APPLE__)
+// ---- lectura (macOS) -------------------------------------------------------------------------------------------
+// The same layout as on Windows; the keyboard and controller state comes from platform_mac.cpp (main thread).
+namespace {
+
+int32_t dead_zone(int v) { return (v > -7849 && v < 7849) ? 0 : std::max(-kStickMax, std::min(kStickMax, int32_t(v))); }
+
+void tsuki_pad_source(plat::PadState& p) {
+    const Config& c = config();
+    plat::MacPad g;
+    if (plat::mac_pad(g)) {
+        const uint32_t held = g.buttons | (g.lt > 100 ? kSrcLT : 0) | (g.rt > 100 ? kSrcRT : 0);
+#ifdef NX_HUD_GLYPHS
+        {
+            static uint32_t antes = 0;
+            auto mitad = [](int v) { return v > 16384 || v < -16384; };
+            if ((held & ~antes) || mitad(g.lx) || mitad(g.ly) || mitad(g.rx) || mitad(g.ry))
+                hud::note_input(g.kind == 1 ? hud::Device::kPs : g.kind == 2 ? hud::Device::kSwitch : hud::Device::kXbox);
+            antes = held;
+        }
+#endif
+        p.lx = dead_zone(g.lx), p.ly = dead_zone(g.ly);
+        p.rx = dead_zone(g.rx), p.ry = dead_zone(g.ry);
+        for (const PadBind& b : c.pad)
+            if (held & b.mask) press(p, b.t);
+    }
+#ifdef NX_HUD_GLYPHS
+    static uint8_t teclas_antes[256];
+    uint8_t teclas_ahora[256] = {};
+#endif
+    const bool alt = plat::mac_key(kVkMenu);  // Option+Enter: fullscreen, not the Enter button
+    for (const KeyBind& k : c.keys)
+        if (!(alt && k.vk == kVkReturn) && plat::mac_key(k.vk)) {
+            press(p, k.t);
+#ifdef NX_HUD_GLYPHS
+            if (!(teclas_antes[k.vk & 0xFF] & 1)) hud::note_input(hud::Device::kKeyboard);
+            teclas_ahora[k.vk & 0xFF] = 1;
+#endif
+        }
+#ifdef NX_HUD_GLYPHS
+    std::memcpy(teclas_antes, teclas_ahora, 256);
+#endif
+}
+
+const bool g_pad_source_set = [] {
+    plat::pad_source = tsuki_pad_source;
+    return true;
+}();
+
+}  // namespace
 #endif
 
 }  // namespace nx::tsuki

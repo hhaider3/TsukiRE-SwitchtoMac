@@ -2,6 +2,8 @@
 
 This project is an independent, unofficial, non-commercial fan port. It is not affiliated with, endorsed by or sponsored by TYPE-MOON or any other rights holder of Tsukihime.
 
+This repository is based on [tsukire-pc-port](https://github.com/Broomstick-Girl-Magical-Amber/tsukire-pc-port) by Broomstick-Girl-Magical-Amber (MIT License), with macOS support added. It is not affiliated with or endorsed by that project.
+
 ## What this repository does not contain
 
 - No game data, no dumps, no firmware, no keys (prod.keys or similar), no files derived from the game (gen, analysis, extracted shaders, textures, audio, video).

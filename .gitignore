@@ -49,6 +49,10 @@
 !/tools/linux/*.cmake
 !/tools/linux/*.ps1
 !/tools/linux/*.py
+# tools\mac\: native build on Apple silicon
+!/tools/mac/
+/tools/mac/*
+!/tools/mac/*.sh
 # personal (paths of one PC): never in the repo
 /tools/dev.local.ps1
 

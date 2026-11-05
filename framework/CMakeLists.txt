@@ -198,7 +198,7 @@ elseif(APPLE)
     target_include_directories(${NX_GAME} PRIVATE runtime/include runtime/src "${NX_GAME_DIR}" "${NX_VULKAN_INCLUDE}")
     target_link_libraries(${NX_GAME} PRIVATE game_main game_sdk SDL3::SDL3)
     target_compile_options(${NX_GAME} PRIVATE -fvisibility=hidden)
-    # The executable loads near 0x1_0000_0000, below the guest ranges (0x40_0000_0000 and up). The game runs on its
+    # The executable loads near 0x1_0000_0000, below the guest ranges (0x80_0000_0000 and up). The game runs on its
     # own thread with a 64 MiB stack (platform_mac.cpp), so the main thread's stack size does not matter.
 elseif(UNIX)
     # Linux: SDL3 (window, input, audio) and the system Vulkan loader, as on macOS. SDL3 from the distribution or a

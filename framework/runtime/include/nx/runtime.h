@@ -20,20 +20,24 @@ extern bool g_trace;  // verbose tracing (NX_TRACE=1)
 // Guest pointers are host pointers. Everything the guest can see lives in these reserved ranges.
 
 constexpr uint64_t kAddressSpaceBase = 0x0008000000ull;
+#if defined(__APPLE__)
+constexpr uint64_t kAddressSpaceSize = 0xFFF8000000ull;  // macOS 27: no room below 39 bits (see NX_BASE)
+#else
 constexpr uint64_t kAddressSpaceSize = 0x7FF8000000ull;  // 39-bit, like an application on Horizon
+#endif
 constexpr uint64_t kModuleBase = NX_BASE;  // main; sdk at +0x10000000 (NX_BASE, nx/cpu.h)
 constexpr uint64_t kHeapMax = 0x180000000ull;  // 6 GiB
 constexpr uint64_t kStackSize = 0x100000000ull;
 constexpr uint64_t kKernelSize = 0x100000000ull;
 constexpr uint64_t kThunkSize = 0x100000ull;
 #if defined(__APPLE__)
-// macOS: only 0x3_0000_0000..0xF_FFFF_FFFF is free below 0x70_0000_0000 (see NX_BASE).
-constexpr uint64_t kHeapBase = 0x400000000ull;
-constexpr uint64_t kAliasBase = 0x600000000ull;
+// macOS 27: guest ranges start at 0x80_0000_0000 (see NX_BASE).
+constexpr uint64_t kHeapBase = 0x8040000000ull;
+constexpr uint64_t kAliasBase = 0x8200000000ull;
 constexpr uint64_t kAliasSize = 0x400000000ull;
-constexpr uint64_t kStackBase = 0xA00000000ull;
-constexpr uint64_t kKernelBase = 0xB00000000ull;
-constexpr uint64_t kThunkBase = 0xE00000000ull;
+constexpr uint64_t kStackBase = 0x8600000000ull;
+constexpr uint64_t kKernelBase = 0x8700000000ull;
+constexpr uint64_t kThunkBase = 0x8A00000000ull;
 #else
 constexpr uint64_t kHeapBase = 0x5000000000ull;
 #if defined(__ANDROID__)

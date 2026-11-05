@@ -51,6 +51,12 @@ namespace nx {
 void boot();
 }
 
+#ifdef NX_TITLE_LIVE
+namespace tsuki_title {
+void hotkey(int dir);  // title_bg.cpp: F5 / F6
+}
+#endif
+
 namespace nx::plat {
 
 namespace {
@@ -270,7 +276,124 @@ float default_render_scale() { return 1.0f; }
 
 // ---- input: first SDL gamepad + keyboard (sampled on the main thread) -----------------------------------------
 
+// Mouse (platform.h PointerState): written by the main thread's event loop, read by the game's threads.
+static std::atomic<int32_t> g_mouse_x{0}, g_mouse_y{0}, g_mouse_wheel{0};
+static std::atomic<uint32_t> g_mouse_buttons{0};
+static std::atomic<uint32_t> g_mouse_downs[3];
+static std::atomic<bool> g_focused{false};
+static std::mutex g_mac_pad_lock;
+static MacPad g_mac_pad;
+static bool g_mac_pad_on = false;
+
+void read_pointer(PointerState& p) {
+    p.x = g_mouse_x;
+    p.y = g_mouse_y;
+    window_size(p.w, p.h);
+    p.buttons = g_mouse_buttons;
+    for (int k = 0; k < 3; k++) p.downs[k] = g_mouse_downs[k];
+    p.wheel = g_mouse_wheel;
+}
+
+bool mac_pad(MacPad& out) {
+    std::lock_guard lk(g_mac_pad_lock);
+    if (g_mac_pad_on) out = g_mac_pad;
+    return g_mac_pad_on;
+}
+
+static int scancode_of_vk(int vk) {
+    if (vk >= 'A' && vk <= 'Z') return SDL_SCANCODE_A + (vk - 'A');
+    if (vk >= '1' && vk <= '9') return SDL_SCANCODE_1 + (vk - '1');
+    if (vk == '0') return SDL_SCANCODE_0;
+    if (vk >= 0x70 && vk <= 0x7B) return SDL_SCANCODE_F1 + (vk - 0x70);
+    if (vk >= 0x7C && vk <= 0x87) return SDL_SCANCODE_F13 + (vk - 0x7C);
+    if (vk >= 0x61 && vk <= 0x69) return SDL_SCANCODE_KP_1 + (vk - 0x61);
+    switch (vk) {
+    case 0x60: return SDL_SCANCODE_KP_0;
+    case 0x20: return SDL_SCANCODE_SPACE;
+    case 0x0D: return SDL_SCANCODE_RETURN;
+    case 0x1B: return SDL_SCANCODE_ESCAPE;
+    case 0x09: return SDL_SCANCODE_TAB;
+    case 0x08: return SDL_SCANCODE_BACKSPACE;
+    case 0xA0: return SDL_SCANCODE_LSHIFT;
+    case 0xA1: return SDL_SCANCODE_RSHIFT;
+    case 0xA2: return SDL_SCANCODE_LCTRL;
+    case 0xA3: return SDL_SCANCODE_RCTRL;
+    case 0xA4: return SDL_SCANCODE_LALT;
+    case 0xA5: return SDL_SCANCODE_RALT;
+    case 0x26: return SDL_SCANCODE_UP;
+    case 0x28: return SDL_SCANCODE_DOWN;
+    case 0x25: return SDL_SCANCODE_LEFT;
+    case 0x27: return SDL_SCANCODE_RIGHT;
+    case 0x21: return SDL_SCANCODE_PAGEUP;
+    case 0x22: return SDL_SCANCODE_PAGEDOWN;
+    case 0x24: return SDL_SCANCODE_HOME;
+    case 0x23: return SDL_SCANCODE_END;
+    case 0x2D: return SDL_SCANCODE_INSERT;
+    case 0x2E: return SDL_SCANCODE_DELETE;
+    case 0xBC: return SDL_SCANCODE_COMMA;
+    case 0xBE: return SDL_SCANCODE_PERIOD;
+    default: return SDL_SCANCODE_UNKNOWN;
+    }
+}
+
+bool mac_key(int vk) {
+    if (!g_focused) return false;
+    const bool* k = SDL_GetKeyboardState(nullptr);
+    switch (vk) {  // either side
+    case 0x10: return k[SDL_SCANCODE_LSHIFT] || k[SDL_SCANCODE_RSHIFT];
+    case 0x11: return k[SDL_SCANCODE_LCTRL] || k[SDL_SCANCODE_RCTRL];
+    case 0x12: return k[SDL_SCANCODE_LALT] || k[SDL_SCANCODE_RALT];
+    default: break;
+    }
+    const int sc = scancode_of_vk(vk);
+    return sc != SDL_SCANCODE_UNKNOWN && k[sc];
+}
+
+// The pad for a game's own reading (pad_source): XInput bits by position, as pad_sdl.cpp.
+static void publish_pad(SDL_Gamepad* pad) {
+    MacPad m;
+    if (pad) {
+        static const struct {
+            SDL_GamepadButton b;
+            uint32_t bit;
+        } map[] = {
+            {SDL_GAMEPAD_BUTTON_DPAD_UP, 0x0001},     {SDL_GAMEPAD_BUTTON_DPAD_DOWN, 0x0002},
+            {SDL_GAMEPAD_BUTTON_DPAD_LEFT, 0x0004},   {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, 0x0008},
+            {SDL_GAMEPAD_BUTTON_START, 0x0010},       {SDL_GAMEPAD_BUTTON_BACK, 0x0020},
+            {SDL_GAMEPAD_BUTTON_LEFT_STICK, 0x0040},  {SDL_GAMEPAD_BUTTON_RIGHT_STICK, 0x0080},
+            {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, 0x0100}, {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, 0x0200},
+            {SDL_GAMEPAD_BUTTON_SOUTH, 0x1000},       {SDL_GAMEPAD_BUTTON_EAST, 0x2000},
+            {SDL_GAMEPAD_BUTTON_WEST, 0x4000},        {SDL_GAMEPAD_BUTTON_NORTH, 0x8000},
+            {SDL_GAMEPAD_BUTTON_GUIDE, 1u << 18},     {SDL_GAMEPAD_BUTTON_TOUCHPAD, 1u << 19},
+            {SDL_GAMEPAD_BUTTON_MISC1, 1u << 20},
+        };
+        for (const auto& e : map)
+            if (SDL_GetGamepadButton(pad, e.b)) m.buttons |= e.bit;
+        m.lt = uint8_t(std::clamp(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 128, 0, 255));
+        m.rt = uint8_t(std::clamp(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 128, 0, 255));
+        auto up = [](int v) { return int16_t(std::clamp(-v, -32767, 32767)); };
+        m.lx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX);
+        m.ly = up(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY));
+        m.rx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX);
+        m.ry = up(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY));
+        switch (SDL_GetGamepadType(pad)) {
+        case SDL_GAMEPAD_TYPE_PS3:
+        case SDL_GAMEPAD_TYPE_PS4:
+        case SDL_GAMEPAD_TYPE_PS5: m.kind = 1; break;
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: m.kind = 2; break;
+        default: break;
+        }
+    }
+    std::lock_guard lk(g_mac_pad_lock);
+    g_mac_pad = m;
+    g_mac_pad_on = pad != nullptr;
+}
+
 static void sample_input() {
+    g_focused = g_window && (SDL_GetWindowFlags(g_window) & SDL_WINDOW_INPUT_FOCUS);
     PadState p;
     static SDL_Gamepad* pad = nullptr;
     if (!pad) {
@@ -283,6 +406,7 @@ static void sample_input() {
         SDL_CloseGamepad(pad);
         pad = nullptr;
     }
+    publish_pad(pad);
     if (pad) {
         // SDL names buttons by position (south/east/...); Nintendo's A is the east button, B the south one.
         struct Map {
@@ -336,6 +460,11 @@ static void sample_input() {
 }
 
 void read_pad(PadState& p) {
+    if (pad_source) {  // the game reads the controller and keyboard itself (Tsukihime: input.ini)
+        pad_source(p);
+        input_script(p);
+        return;
+    }
     std::lock_guard lk(g_pad_lock);
     p.buttons |= g_pad.buttons;
     if (g_pad.lx) p.lx = g_pad.lx;
@@ -521,9 +650,51 @@ int main() {
                 g_pixel_w = uint32_t(e.window.data1), g_pixel_h = uint32_t(e.window.data2);
                 break;
             case SDL_EVENT_KEY_DOWN:
-                if (e.key.scancode == SDL_SCANCODE_F11 && g_window)
+                if (g_window && (e.key.scancode == SDL_SCANCODE_F11 ||
+                                 (e.key.scancode == SDL_SCANCODE_RETURN && (e.key.mod & SDL_KMOD_ALT))))
                     SDL_SetWindowFullscreen(g_window, !(SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN));
+#ifdef NX_TITLE_LIVE
+                if ((e.key.scancode == SDL_SCANCODE_F5 || e.key.scancode == SDL_SCANCODE_F6) && !e.key.repeat)
+                    tsuki_title::hotkey(e.key.scancode == SDL_SCANCODE_F6 ? 1 : -1);
+#endif
+#ifdef NX_FIXED_ASPECT  // Ctrl+1/2/3: the picture at 50/75/100% of 1920 px wide
+                if (g_window && (e.key.mod & SDL_KMOD_CTRL) && !e.key.repeat && e.key.scancode >= SDL_SCANCODE_1 &&
+                    e.key.scancode <= SDL_SCANCODE_3 && !(SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN)) {
+                    const int pct = e.key.scancode == SDL_SCANCODE_1 ? 50 : e.key.scancode == SDL_SCANCODE_2 ? 75 : 100;
+                    const float d = SDL_GetWindowPixelDensity(g_window);
+                    const int cw = int(1920 * pct / 100 / (d > 0 ? d : 1));
+                    SDL_SetWindowSize(g_window, cw, cw * 9 / 16);
+                }
+#endif
                 break;
+            case SDL_EVENT_MOUSE_MOTION: {
+                const float d = g_window ? SDL_GetWindowPixelDensity(g_window) : 1;
+                g_mouse_x = int32_t(e.motion.x * d), g_mouse_y = int32_t(e.motion.y * d);
+                break;
+            }
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP: {
+                const int k = e.button.button == SDL_BUTTON_LEFT ? 0 : e.button.button == SDL_BUTTON_RIGHT ? 1
+                              : e.button.button == SDL_BUTTON_MIDDLE ? 2 : -1;
+                if (k < 0) break;
+                const float d = g_window ? SDL_GetWindowPixelDensity(g_window) : 1;
+                g_mouse_x = int32_t(e.button.x * d), g_mouse_y = int32_t(e.button.y * d);
+                if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                    g_mouse_buttons |= 1u << k;
+                    g_mouse_downs[k]++;
+                } else {
+                    g_mouse_buttons &= ~(1u << k);
+                }
+                break;
+            }
+            case SDL_EVENT_MOUSE_WHEEL: {  // 120 per notch; a trackpad's small steps add up
+                static float carry = 0;
+                carry += e.wheel.y * 120.0f;
+                const int whole = int(carry);
+                carry -= float(whole);
+                g_mouse_wheel += whole;
+                break;
+            }
             default:
                 break;
             }

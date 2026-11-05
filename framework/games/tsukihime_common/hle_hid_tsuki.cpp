@@ -88,7 +88,7 @@ void GetNpadControllerColorLR(CPU& c) {  // (NpadControllerColor* left, NpadCont
 }
 
 // ---- Mouse -> botones del mando (plat::pad_hook) ----------------------------------------------------------------
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
 constexpr uint64_t kMs = 1000000;
 
 void mouse_pad(plat::PadState& p) {
@@ -156,7 +156,7 @@ void trace_pad(const plat::PadState& p) {
 }
 
 void tsuki_pad_hook(plat::PadState& p) {
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
     mouse_pad(p);
 #endif
     if (trace_on()) trace_pad(p);
@@ -182,7 +182,7 @@ struct TouchSample {
     int32_t x = 0, y = 0;
 };
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
 // Ventana -> pantalla del juego: el rectangulo donde el framework presenta la imagen (plat::picture_rect,
 // apply_aspect.py): con NX_FIXED_ASPECT la imagen con franjas, sin ella el area cliente entera (estirada).
 struct ScreenPoint {
@@ -226,7 +226,7 @@ TouchSample next_touch_sample() {
     const uint64_t now = plat::monotonic_ns();
     s.delta = g_touch_last_ns ? int64_t(now - g_touch_last_ns) : 0;
     g_touch_last_ns = now;
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
     if (!mouse_on()) return s;
     plat::PointerState p;
     plat::read_pointer(p);

@@ -121,8 +121,20 @@ struct PointerState {
     uint32_t downs[3] = {};
     int32_t wheel = 0;
 };
-#if defined(_WIN32)
-void read_pointer(PointerState& p);  // platform_win.cpp
+#if defined(_WIN32) || defined(__APPLE__)
+void read_pointer(PointerState& p);  // platform_win.cpp, platform_mac.cpp
+#endif
+#if defined(__APPLE__)
+// A game's own input on macOS (input_tsuki.cpp): the state sampled on the main thread, read from any thread.
+// buttons: XInput bits by physical position, plus kSrc* of pad_sdl.h. kind: 0 Xbox-like, 1 PlayStation, 2 Switch.
+struct MacPad {
+    uint32_t buttons = 0;
+    uint8_t lt = 0, rt = 0;
+    int16_t lx = 0, ly = 0, rx = 0, ry = 0;  // up is positive, as XInput
+    int kind = 0;
+};
+bool mac_pad(MacPad& out);        // false: no controller
+bool mac_key(int vk);             // a Windows VK_* code held while the window has focus
 #endif
 // A game's own pad input on top of read_pad (hle_hid.cpp calls it for player 1); null (the default): none.
 using PadHook = void (*)(PadState& p);
