@@ -83,12 +83,12 @@ Saves are in `data/tsuki/user/save` (Japanese) and `data/tsuki_global/user/save`
 |---|---|---|---|
 | Advance text | Space, Return or Down | Wheel down | B (right button) |
 | Cancel / hide the text window | Delete | | A (bottom) |
-| Dialog menu | Tab | Wheel up | Y (top) |
+| Dialog menu | Tab | Middle click | Y (top) |
 | System menu | Esc, S, L or C | Right click | X (left) |
 | Select, touch | | Left click | |
 | Auto mode | A | | LB |
 | Fast-forward | F | | RB |
-| Rewind while held | R | Middle click | LT |
+| Rewind | R (while held) | Wheel up | LT (while held) |
 | Speed up while held | Control | | RT |
 | Move in menus | Arrow keys | | D-pad |
 | Lists, page by page | Fn+Up, Fn+Down | | Left stick |
