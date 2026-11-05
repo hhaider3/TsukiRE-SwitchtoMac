@@ -19,14 +19,14 @@ This repository contains **no game, no dumps, no keys, no firmware and no files 
 **Works**
 
 - The Japanese edition starts and runs at about 60 fps on an Apple M2 (8 GB) with macOS 27, from a clean build with the build script.
-- Keyboard controls.
+- Keyboard and mouse controls.
 - Community patches in `.nsp` format (tested with one translation patch).
 - The game reads its files directly from your dump. Nothing is extracted.
 
 **Not tested yet**
 
 - A full playthrough. Only startup and early play have been run on a Mac, so later scenes may have problems.
-- Mouse and controller input. The support is written but has not yet been confirmed on real hardware.
+- Controller input. The support is written, but no controller has been tried.
 - The global edition. The script supports it, but it has not been built on a Mac.
 - Other Macs and macOS versions. The memory layout was changed for macOS 27, so older versions may not work.
 
